@@ -1,8 +1,14 @@
 package com.github.amap.location;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
+import android.Manifest;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -13,6 +19,8 @@ import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 
 public class MainActivity extends AppCompatActivity {
+    private static final String TAG = "MainActivity";
+    private static final int CODE_REQUEST_LOCATION = 0x10;
 
     private Button btClientSingle;
     private Button btClientContinue;
@@ -23,6 +31,10 @@ public class MainActivity extends AppCompatActivity {
     private AMapLocationClient locationClientContinue = null;
 
     private int continueCount;
+
+    private static final int ID_SINGLE = 0x00;
+    private static final int ID_CONTINUE = 0x01;
+    private int mActionId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,6 +86,10 @@ public class MainActivity extends AppCompatActivity {
      * 启动单次客户端定位
      */
     void startSingleLocation() throws Exception {
+        if (tryRequestLocationPermissions(this)) {
+            mActionId = ID_SINGLE;
+            return;
+        }
         AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
         AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
         if (null == locationClientSingle) {
@@ -104,6 +120,12 @@ public class MainActivity extends AppCompatActivity {
      * 启动连续客户端定位
      */
     void startContinueLocation() throws Exception {
+        if (tryRequestLocationPermissions(this)) {
+            mActionId = ID_CONTINUE;
+            return;
+        }
+        AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
+        AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
         if (null == locationClientContinue) {
             locationClientContinue = new AMapLocationClient(this.getApplicationContext());
         }
@@ -177,5 +199,46 @@ public class MainActivity extends AppCompatActivity {
             locationClientContinue.onDestroy();
             locationClientContinue = null;
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CODE_REQUEST_LOCATION) {
+            if (grantResults.length == 2 && grantResults[0] == PackageManager.PERMISSION_GRANTED
+                    && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
+                if (mActionId == ID_SINGLE) {
+                    try {
+                        startSingleLocation();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } else if (mActionId == ID_CONTINUE) {
+                    try {
+                        startContinueLocation();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            } else {
+                Log.d(TAG, "failed to grant location permission!");
+            }
+        }
+    }
+
+    private boolean tryRequestLocationPermissions(Context context) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+            }, CODE_REQUEST_LOCATION);
+            return true;
+        }
+
+        return false;
     }
 }
